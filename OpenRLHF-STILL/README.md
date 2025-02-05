@@ -8,6 +8,7 @@ pip install packaging
 pip install ninja
 pip install flash-attn --no-build-isolation
 pip install openrlhf
+pip install "git+https://github.com/tongyx361/symeval.git"
 ```
 
 ## Training 

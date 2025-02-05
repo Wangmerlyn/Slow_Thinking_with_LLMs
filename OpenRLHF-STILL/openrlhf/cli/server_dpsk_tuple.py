@@ -63,7 +63,7 @@ def normalize_text(text):
 
 class MathRuleProxy:
     def __init__(self, args):
-        eval_dataset = datasets.load_from_disk(args.data_path).to_list()
+        eval_dataset = datasets.load_from_disk(args.data_path)['train'].to_list()
         self.eval_data_dict = self.get_answer_dict(eval_dataset)
         print(len(self.eval_data_dict))
         self.tokenizer = AutoTokenizer.from_pretrained(args.reward_pretrain, trust_remote_code=True, use_fast=True)
