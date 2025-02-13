@@ -11,12 +11,13 @@ wandb_token=$WANDB_TOKEN
 sudo rm -rf ~/.netrc
 
 # Path of training data
-DATA_PATH=/mnt/longcontext/models/siyuan/rl_datasets/STILL-3-Preview-RL-Data
+DATA_PATH=/mnt/longcontext/models/siyuan/rl_datasets/STILL-3-preview-RL-Data-1k
 
 # Path of backbone model(DeepSeek-R1-Distill-Qwen-1.5B)
 TOKENIZER_PATH=/mnt/longcontext/models/siyuan/llama3/llama-3.1-8B-instruct
 
 
+MAX_SAMPLES=256
 N_SAMPLES=8
 EPISODE=1
 WARMUP=0.0
@@ -28,7 +29,8 @@ MAX_LENGTH=16384
 PORT=1278
 TEMP=0.6
 # REWARD_MODEL=server_false-1_true1_unknown-1-repeat-single
-REWARD_MODEL=server_dpsk_tuple
+# REWARD_MODEL=server_dpsk_tuple
+REWARD_MODEL=server_llama3_reward
 SAVE_MODEL_NAME=test-llama31-8b-rm1-1-2-grpo-len_${MAX_LENGTH-}tbs_${TBS}-rbs_${RBS}-sample_$N_SAMPLES-kl_${KL}-warmup_${WARMUP}-ep_${EPISODE}-plr_${LR}-temp$TEMP-30k
 
 GROUP_METHOD=normal
@@ -38,6 +40,8 @@ LOG_BASE=log
 mkdir -p results/$SAVE_MODEL_NAME
 mkdir -p results/$SAVE_MODEL_NAME/server
 mkdir -p $LOG_BASE/server/
+
+pkill -f -9 ray
 
 if [ "$NODE_RANK" = "0" ]; then
     ray start --head --port=8265 --dashboard-port=8266 --object-manager-port=8280 --node-manager-port=8290 --num-cpus=64 --num-gpus=8
@@ -52,10 +56,10 @@ if [ "$NODE_RANK" = "0" ]; then
 ray job submit --address="http://127.0.0.1:8266" \
    -- python3 -m openrlhf.cli.train_ppo_ray \
    --ref_num_nodes 1 \
-   --ref_num_gpus_per_node 2 \
+   --ref_num_gpus_per_node 4 \
    --actor_num_nodes 1 \
-   --actor_num_gpus_per_node 2 \
-   --vllm_num_engines 2 \
+   --actor_num_gpus_per_node 4 \
+   --vllm_num_engines 4 \
    --vllm_tensor_parallel_size 1 \
    --colocate_actor_ref \
    --pretrain ${TOKENIZER_PATH} \
@@ -67,7 +71,7 @@ ray job submit --address="http://127.0.0.1:8266" \
    --micro_rollout_batch_size 2 \
    --rollout_batch_size ${RBS} \
    --advantage_estimator group_norm \
-   --max_samples 1000 \
+   --max_samples ${MAX_SAMPLES} \
    --max_epochs 1 \
    --num_episodes ${EPISODE} \
    --lr_warmup_ratio ${WARMUP} \

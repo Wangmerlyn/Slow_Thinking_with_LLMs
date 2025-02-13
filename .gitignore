@@ -58,3 +58,5 @@ coverage.xml
 .env
 .env.local
 .env.*.local
+
+wandb/

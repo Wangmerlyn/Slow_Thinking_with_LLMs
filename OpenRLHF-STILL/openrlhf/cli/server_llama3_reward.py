@@ -26,35 +26,22 @@ def strip_sequence(text, pad_token, eos_token):
 
 
 def extract_answer_math(s):
-    ans = s.split("boxed")
-    if len(ans) == 1:
-        return s
-    ans = ans[-1]
-    if len(ans) == 0:
-        return ""
-    try:
-        if ans[0] == "{":
-            stack = 1
-            a = ""
-            for c in ans[1:]:
-                if c == "{":
-                    stack += 1
-                    a += c
-                elif c == "}":
-                    stack -= 1
-                    if stack == 0:
-                        break
-                    a += c
-                else:
-                    a += c
-        else:
-            a = ans.split("$")[0].strip()
-    except:
-        return ""
-    return a
+    """
+    input query
+    """
+    pattern = r"Answer:(.*)<\|eot_id\|>"
+    match = re.search(pattern, s)
+    if match:
+        ans = match.group(1)
+    else:
+        ans = "failedmatch"
+    return ans
 
 
 def normalize_text(text):
+    """
+    Normalize text by lowercasing and removing special characters
+    """
     text = re.sub("[,.:\"'\[\]\-=\+\\|!@#$%^&*();<>?/！￥…（）—\{\}：”“《》？]", " ", text.lower())
     text = re.sub("import\s[a-zA-Z\.]+(\sas\s[a-zA-Z\.]+)\n", " ", text)
     text = re.sub("\s+", " ", text)
@@ -74,6 +61,9 @@ class MathRuleProxy:
         self.eval_data_dict = self.get_answer_dict(eval_dataset)
         logger.info(f"len(train_data_dict): {len(self.eval_data_dict)}")
         self.tokenizer = AutoTokenizer.from_pretrained(args.reward_pretrain, trust_remote_code=True)
+        if self.tokenizer.pad_token is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
+            self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
         self.log_file = args.log_file
         self.avg_length_dict = []
         self.cnt = 0
@@ -103,23 +93,67 @@ class MathRuleProxy:
         """
         eval_data_dict = {}
         for item in eval_dataset:
-            eval_data_dict[normalize_text(item["question"])] = item["answer"]
+            # eval_data_dict[normalize_text(item["question"])] = item["answer"]
+            # since the answer for musique comes in the form of a list, all the elements of the list are correct 
+            if "answers" in item:
+                assert type(item["answers"]) == list, f"Key answers not in list format for {item['question']}"
+                assert len(item["answers"]) > 0, f"Empty answers for {item['question']}"
+                eval_data_dict[normalize_text(item["question"])] = [normalize_text(ans) for ans in item["answers"]]
+            else:
+                eval_data_dict[normalize_text(item["question"])] = normalize_text(item["answer"])
         return eval_data_dict
 
     def get_qa(self, query):
-        question = query.split("<｜User｜>")[-1].split("<｜Assistant｜>")[0].strip()
-        question = question.replace(
-            "Please reason step by step, and put your final answer within \\boxed{}", ""
-        ).strip()
-        solution = query.split("<｜Assistant｜>")[-1].strip()
+        # question = query.split("<｜User｜>")[-1].split("<｜Assistant｜>")[0].strip()
+        # question = question.replace(
+        #     "Please reason step by step, and put your final answer within \\boxed{}", ""
+        # ).strip()
+        # solution = query.split("<｜Assistant｜>")[-1].strip()
+        import re
+
+        text = query
+        pattern = r"Question: (.*) <\|start_header_id\|>"
+        match = re.search(pattern, text)
+        if match:
+            input_part = match.group(1)
+            # logger.info(f"input_part: {input_part}")
+            question = input_part
+        else:
+            question = "What is 1+1"
+        # question = normalize_text(question)
+        solution_pattern = r"<\|start_header_id\|>assistant<\|end_header_id\|>(.*)<\|eot_id\|>"
+        match = re.search(solution_pattern, text)
+        if match:
+            solution = match.group(1)
+        else:
+            solution = "No answer"
+        # solution = normalize_text(solution)
+        logger.info("Question is: ")
+        logger.info(question)
+        logger.info("Solution is: ")
+        logger.info(solution)
+        logger.info("End of QA")
+
         return question, solution
 
     def get_query_answer(self, query):
-        query = query.split("<｜User｜>")[-1].split("<｜Assistant｜>")[0].strip()
-        query = query.replace("Please reason step by step, and put your final answer within \\boxed{}", "").strip()
+        # query = query.split("<｜User｜>")[-1].split("<｜Assistant｜>")[0].strip()
+        # query = query.replace("Please reason step by step, and put your final answer within \\boxed{}", "").strip()
+        # query = 
+        import re
+
+        text = query
+        pattern = r"Question:(.*)<\|start_header_id\|>"
+        match = re.search(pattern, text)
+        if match:
+            input_part = match.group(1)
+            logger.info(f"input_part: {input_part}")
+            query = input_part
+        else:
+            query = "No answer"
         query = normalize_text(query)
-        print(query)
-        return self.eval_data_dict.get(query, "")
+        # print(query)
+        return self.eval_data_dict.get(query, "No answer")
 
     def get_query_pred(self, query):
         return extract_answer_math(query)
@@ -144,16 +178,32 @@ class MathRuleProxy:
             answers.append(self.get_query_answer(question))
             questions.append(question)
             solutions.append(solution)
-        logger.info(f"queries[0]: {queries[0]}")
         print(preds, answers)
 
-        evaluator = EvaluatorMathBatch()
-        scores = evaluator.batch_eq(ref_answers=answers, pred_answers=preds)
+        # evaluator = EvaluatorMathBatch()
+        # scores = evaluator.batch_eq(ref_answers=answers, pred_answers=preds)
+        scores = []
+        logger.info(f"answers: {answers}")
+        logger.info(f"preds: {preds}")
+        for single_answer, single_pred in zip(answers, preds):
+            if type(single_answer) == list:
+                for ans in single_answer:
+                    if ans in single_pred:
+                        scores.append(1.0)
+                        break
+                scores.append(0.0)
+            elif type(single_answer) == str:
+                if single_answer in single_pred:
+                    scores.append(1.0)
+                else:
+                    scores.append(0.0)
+            else:
+                raise ValueError(f"Type of single_answer is {type(single_answer)}")
         length_scores = []
         pattern_scores = []
         for i, query in enumerate(queries):
             self.cnt = self.cnt + 1
-            if "boxed" not in solutions[i]:
+            if "Answer:" not in solutions[i]:
                 scores[i] = -2.0
                 finished_lst.append("0")
             else:
@@ -164,7 +214,7 @@ class MathRuleProxy:
                     scores[i] = 1.0
                     finished_lst.append("1")
 
-            if "boxed" not in query:
+            if "Answer:" not in query:
                 length_scores.append(1)
             else:
                 length_scores.append(0)
@@ -188,7 +238,9 @@ class MathRuleProxy:
 
         # return scores
         assert len(scores) == len(length_scores)
-        final_score = [[s0, s1] for s0, s1 in zip(scores, length_scores)]
+        # final_score = [[s0, s1] for s0, s1 in zip(scores, length_scores)]
+        # TODO: check how does the final_score work given 2 scores in a list
+        final_score = [s0 for s0 in scores]
         return final_score
         # return scores
 
@@ -211,7 +263,11 @@ if __name__ == "__main__":
     @app.post("/get_reward")
     async def get_reward(request: Request):
         data = await request.json()
-        with open("data.json", "w") as f:
+        # convert data to JSON
+        # logger.info(f"Received JSON: {data}")
+        # print("Received JSON: ")
+        # print(data)
+        with open("/mnt/longcontext/models/siyuan/test_code/LongRL/data.json", "w") as f:
             json.dump(data, f)
         queries = data.get("query")
         rewards = reward_model.get_reward(queries)
