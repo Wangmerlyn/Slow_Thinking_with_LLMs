@@ -133,6 +133,30 @@ pkill -f ${REWARD_MODEL}
 nohup python -m openrlhf.cli.${REWARD_MODEL} --data_path $DATA_PATH --reward_pretrain $TOKENIZER_PATH --log_file results/$SAVE_MODEL_NAME/server/sampling.jsonl --port ${PORT} > $LOG_BASE/server/$SAVE_MODEL_NAME-node$NODE_RANK.log 2>&1 &
 echo $LOG_BASE/server/$SAVE_MODEL_NAME-node$NODE_RANK.log 
 
+echo "Starting training..."
+echo "NODE_RANK: $NODE_RANK"
+echo "SAVE_MODEL_NAME: $SAVE_MODEL_NAME"
+echo "DATA_PATH: $DATA_PATH"
+echo "TOKENIZER_PATH: $TOKENIZER_PATH"
+echo "MAX_SAMPLES: $MAX_SAMPLES"
+echo "N_SAMPLES: $N_SAMPLES"
+echo "EPISODE: $EPISODE"
+echo "WARMUP: $WARMUP"
+echo "TBS: $TBS"
+echo "RBS: $RBS"
+echo "KL: $KL"
+echo "LR: $LR"
+echo "MAX_LENGTH: $MAX_LENGTH"
+echo "PROMPT_MAX_LENGTH: $PROMPT_MAX_LENGTH"
+echo "PORT: $PORT"
+echo "TEMP: $TEMP"
+echo "SAVE_MODEL_NAME_PREFIX: $SAVE_MODEL_NAME_PREFIX"
+echo "REWARD_MODEL: $REWARD_MODEL"
+echo "GROUP_METHOD: $GROUP_METHOD"
+echo "LOG_BASE: $LOG_BASE"
+echo "NODE_RANK: $NODE_RANK"
+
+
 if [ "$NODE_RANK" = "0" ]; then
 ray job submit --address="http://127.0.0.1:8266" \
    -- python3 -m openrlhf.cli.train_ppo_ray \
