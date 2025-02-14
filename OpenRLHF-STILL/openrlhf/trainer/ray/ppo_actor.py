@@ -229,6 +229,11 @@ class ActorModelRayActor(BasePPORole):
         self.num_update_steps_per_episodes = (
             len(self.prompts_dataset) * args.n_samples_per_prompt // args.train_batch_size * args.max_epochs
         )
+        print(f"num_update_steps_per_episodes: {self.num_update_steps_per_episodes}")
+        print(f"len(prompts_dataset): {len(self.prompts_dataset)}")
+        print(f"n_samples_per_prompt: {args.n_samples_per_prompt}")
+        print(f"train_batch_size: {args.train_batch_size}")
+        print(f"max_epochs: {args.max_epochs}")
         max_steps = math.ceil(args.num_episodes * self.num_update_steps_per_episodes)
         self._max_steps = max_steps
 

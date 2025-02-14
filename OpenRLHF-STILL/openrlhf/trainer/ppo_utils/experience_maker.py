@@ -315,8 +315,8 @@ class NaiveExperienceMaker(ABC):
 
 
                 else:
-                    reward_mean = reward.mean(1, keepdim=True)
-                    reward = (reward - reward.mean(1, keepdim=True)) / (reward.std(1, keepdim=True) + 1e-8)
+                    reward_mean = reward.mean(-1, keepdim=True)
+                    reward = (reward - reward.mean(-1, keepdim=True)) / (reward.std(-1, keepdim=True) + 1e-8)
 
 
                     reward = reward.reshape(-1)

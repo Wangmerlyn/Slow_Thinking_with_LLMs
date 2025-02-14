@@ -11,14 +11,15 @@ wandb_token=$WANDB_TOKEN
 sudo rm -rf ~/.netrc
 
 # Path of training data
-DATA_PATH=/mnt/longcontext/models/siyuan/rl_datasets/STILL-3-preview-RL-Data-1k
+# DATA_PATH=/mnt/longcontext/models/siyuan/rl_datasets/STILL-3-preview-RL-Data-1k
+DATA_PATH=/mnt/longcontext/models/siyuan/rl_datasets/longcontext_train_30k/train.jsonl
 
 # Path of backbone model(DeepSeek-R1-Distill-Qwen-1.5B)
 TOKENIZER_PATH=/mnt/longcontext/models/siyuan/llama3/llama-3.1-8B-instruct
 
 
 MAX_SAMPLES=256
-N_SAMPLES=8
+N_SAMPLES=32
 EPISODE=1
 WARMUP=0.0
 TBS=512

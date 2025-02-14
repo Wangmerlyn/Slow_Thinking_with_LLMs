@@ -1,24 +1,12 @@
+#!/bin/bash
 
+# ########################################
+# # Configurable via command-line args
+# ########################################
 
-NODE_RANK=$1
-
-# export TORCH_HOME=/opt/aps/workdir
-export NUMEXPR_MAX_THREADS=128
-export RAY_DEDUP_LOGS=0
-
-# Your wandb token
-wandb_token=$WANDB_TOKEN
-sudo rm -rf ~/.netrc
-
-pkill -f -9 openrlhf
-# Path of training data
-# DATA_PATH=/mnt/longcontext/models/siyuan/rl_datasets/STILL-3-preview-RL-Data-1k
-DATA_PATH=/mnt/longcontext/models/siyuan/rl_datasets/longcontext_train_30k/train.jsonl
-
-# Path of backbone model(DeepSeek-R1-Distill-Qwen-1.5B)
-TOKENIZER_PATH=/mnt/longcontext/models/siyuan/llama3/llama-3.1-8B-instruct
-
-
+# Default values
+DATA_PATH="/mnt/longcontext/models/siyuan/rl_datasets/longcontext_train_30k/train.jsonl"
+TOKENIZER_PATH="/mnt/longcontext/models/siyuan/llama3/llama-3.1-8B-instruct"
 MAX_SAMPLES=10000
 N_SAMPLES=8
 EPISODE=1
@@ -31,20 +19,110 @@ MAX_LENGTH=4096
 PROMPT_MAX_LENGTH=8192
 PORT=1278
 TEMP=0.6
-# REWARD_MODEL=server_false-1_true1_unknown-1-repeat-single
-# REWARD_MODEL=server_dpsk_tuple
-REWARD_MODEL=server_llama3_reward
-SAVE_MODEL_NAME=trainall-llama31-8b-rm1-1-2-grpo-len_${MAX_LENGTH-}tbs_${TBS}-rbs_${RBS}-sample_$N_SAMPLES-kl_${KL}-warmup_${WARMUP}-ep_${EPISODE}-plr_${LR}-temp$TEMP-30k
+SAVE_MODEL_NAME_PREFIX="trainall-llama31-8b"
+REWARD_MODEL="server_llama3_reward"
+GROUP_METHOD="normal"
+LOG_BASE="log"
+NODE_RANK=0
 
-GROUP_METHOD=normal
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --data_path)
+      DATA_PATH="$2"
+      shift 2
+      ;;
+    --tokenizer_path)
+      TOKENIZER_PATH="$2"
+      shift 2
+      ;;
+    --max_samples)
+      MAX_SAMPLES="$2"
+      shift 2
+      ;;
+    --n_samples)
+      N_SAMPLES="$2"
+      shift 2
+      ;;
+    --episode)
+      EPISODE="$2"
+      shift 2
+      ;;
+    --warmup)
+      WARMUP="$2"
+      shift 2
+      ;;
+    --tbs)
+      TBS="$2"
+      shift 2
+      ;;
+    --rbs)
+      RBS="$2"
+      shift 2
+      ;;
+    --kl)
+      KL="$2"
+      shift 2
+      ;;
+    --lr)
+      LR="$2"
+      shift 2
+      ;;
+    --max_length)
+      MAX_LENGTH="$2"
+      shift 2
+      ;;
+    --prompt_max_length)
+      PROMPT_MAX_LENGTH="$2"
+      shift 2
+      ;;
+    --port)
+      PORT="$2"
+      shift 2
+      ;;
+    --temp)
+      TEMP="$2"
+      shift 2
+      ;;
+    --save_model_name_prefix)
+      SAVE_MODEL_NAME_PREFIX="$2"
+      shift 2
+      ;;
+    --reward_model)
+      REWARD_MODEL="$2"
+      shift 2
+      ;;
+    --group_method)
+      GROUP_METHOD="$2"
+      shift 2
+      ;;
+    --log_base)
+      LOG_BASE="$2"
+      shift 2
+      ;;
+    --node_rank)
+      NODE_RANK="$2"
+      shift 2
+      ;;
+    *)
+      echo "Unknown option: $1"
+      exit 1
+      ;;
+  esac
+done
 
-LOG_BASE=log
+# Your wandb token (presumed to be already set)
+wandb_token=$WANDB_TOKEN
+sudo rm -rf ~/.netrc
 
+pkill -f -9 openrlhf
+
+# Create necessary directories
 mkdir -p results/$SAVE_MODEL_NAME
 mkdir -p results/$SAVE_MODEL_NAME/server
 mkdir -p $LOG_BASE/server/
 
-pkill -f -9 ray
+pkill -f ray
 
 if [ "$NODE_RANK" = "0" ]; then
     ray start --head --port=8265 --dashboard-port=8266 --object-manager-port=8280 --node-manager-port=8290 --num-cpus=64 --num-gpus=8
@@ -102,5 +180,3 @@ ray job submit --address="http://127.0.0.1:8266" \
    --temperature $TEMP \
    --overlap_comm   
 fi
-#    --enable_ema \
-#    --load_checkpoint

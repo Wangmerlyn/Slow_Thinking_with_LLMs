@@ -27,15 +27,15 @@ def strip_sequence(text, pad_token, eos_token):
 
 def extract_answer_math(s):
     """
-    input query
+    input solution
     """
-    pattern = r"Answer:(.*)<\|eot_id\|>"
+    pattern = r"Answer:(.*)"
     match = re.search(pattern, s)
     if match:
         ans = match.group(1)
     else:
-        ans = "failedmatch"
-    return ans
+        ans = "failedmatchfromanswer"
+    return normalize_text(ans)
 
 
 def normalize_text(text):
@@ -101,6 +101,10 @@ class MathRuleProxy:
                 eval_data_dict[normalize_text(item["question"])] = [normalize_text(ans) for ans in item["answers"]]
             else:
                 eval_data_dict[normalize_text(item["question"])] = normalize_text(item["answer"])
+        # print the first 100 keys of the eval_data_dict
+        # for i, key in enumerate(eval_data_dict.keys()):
+        #     if i < 100:
+        #         logger.info(f"key {i}: {key}")
         return eval_data_dict
 
     def get_qa(self, query):
@@ -112,21 +116,33 @@ class MathRuleProxy:
         import re
 
         text = query
-        pattern = r"Question: (.*) <\|start_header_id\|>"
+        pattern = r"Question:(.*)<\|eot_id\|>"
         match = re.search(pattern, text)
         if match:
             input_part = match.group(1)
             # logger.info(f"input_part: {input_part}")
             question = input_part
+            logger.info(f"successful match question")
+            logger.info(f"question: {question}")
         else:
             question = "What is 1+1"
+            logger.info(f"failed match question")
         # question = normalize_text(question)
         solution_pattern = r"<\|start_header_id\|>assistant<\|end_header_id\|>(.*)<\|eot_id\|>"
-        match = re.search(solution_pattern, text)
+        match = re.search(solution_pattern, text, re.DOTALL)
         if match:
             solution = match.group(1)
+            logger.info(f"Solution found first try {solution}")
         else:
-            solution = "No answer"
+            # solution_second_pattern = r"<\|start_header_id\|>assistant<\|end_header_id\|>(.*)"
+            # match = re.search(solution_second_pattern, text)
+            # logger.info(f"text last 1000: {text[-1000:]}")
+            # logger.info(f"text_end")
+            # if match:
+            #     solution = match.group(1)
+            # else:
+            #     solution = "failedansewer"
+            solution = "failedansewer"
         # solution = normalize_text(solution)
         logger.info("Question is: ")
         logger.info(question)
@@ -142,17 +158,27 @@ class MathRuleProxy:
         # query = 
         import re
 
-        text = query
-        pattern = r"Question:(.*)<\|start_header_id\|>"
-        match = re.search(pattern, text)
-        if match:
-            input_part = match.group(1)
-            logger.info(f"input_part: {input_part}")
-            query = input_part
-        else:
-            query = "No answer"
+        # text = query
+        # pattern = r"Question:(.*)<\|eot_id\|>"
+        # # pattern = r"Question:\s*(.*?)<\|eot_id\|>"
+        # match = re.search(pattern, text, re.DOTALL)
+        # if match:
+        #     input_part = match.group(1)
+        #     logger.info(f"input_part: {input_part}")
+        #     query = input_part
+        # else:
+        #     query = "FailedToGetQuestionFromQuery"
+        logger.info(f"Query from the given query is {query}")
         query = normalize_text(query)
+        logger.info(f"Question from the given query is {query}")
         # print(query)
+        if query == "FailedToGetQuestionFromQuery":
+            logger.info("No answer found")
+        # check if query in dict
+        if query in self.eval_data_dict:
+            logger.info("Query found in dict")
+        else:
+            logger.info("Query not found in dict")
         return self.eval_data_dict.get(query, "No answer")
 
     def get_query_pred(self, query):
@@ -185,13 +211,17 @@ class MathRuleProxy:
         scores = []
         logger.info(f"answers: {answers}")
         logger.info(f"preds: {preds}")
+        # correct score
         for single_answer, single_pred in zip(answers, preds):
             if type(single_answer) == list:
+                is_hit = False
                 for ans in single_answer:
                     if ans in single_pred:
                         scores.append(1.0)
+                        is_hit = True
                         break
-                scores.append(0.0)
+                if not is_hit:
+                    scores.append(0.0)
             elif type(single_answer) == str:
                 if single_answer in single_pred:
                     scores.append(1.0)
@@ -213,34 +243,38 @@ class MathRuleProxy:
                 else:
                     scores[i] = 1.0
                     finished_lst.append("1")
-
-            if "Answer:" not in query:
-                length_scores.append(1)
-            else:
-                length_scores.append(0)
+            #TODO: implement a score that corresponds to the output length
+            # right now it's not implemented
+            length_scores.append(scores[i])
 
         # Write query-score pairs to JSONL if log_file is provided
         if self.log_file:
             with open(self.log_file, "a", encoding="utf-8") as f:
-                for q, a, s, f_f in zip(
+                for query, q, a, s, f_f, p, gt in zip(
+                    queries,
                     questions,
                     solutions,
                     scores,
                     finished_lst,
+                    preds,
+                    answers,
                 ):
                     record = {
+                        # "full_query": query,
                         "question": q,
                         "solution": a,
                         "score": s,
                         "finished": f_f,
+                        "pred": p,
+                        "gt": gt,
                     }
                     f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
         # return scores
         assert len(scores) == len(length_scores)
-        # final_score = [[s0, s1] for s0, s1 in zip(scores, length_scores)]
+        final_score = [[s0, s1] for s0, s1 in zip(scores, length_scores)]
         # TODO: check how does the final_score work given 2 scores in a list
-        final_score = [s0 for s0 in scores]
+        # final_score = [s0 for s0 in scores]
         return final_score
         # return scores
 

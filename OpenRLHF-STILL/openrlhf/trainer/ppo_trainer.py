@@ -195,7 +195,11 @@ class PPOTrainer(ABC):
             // args.rollout_batch_size
             // args.n_samples_per_prompt
         )
-
+        print(f"num_update_steps_per_episodes: {num_update_steps_per_episodes}")
+        print(f"train_batch_size: {args.train_batch_size}")
+        print(f"rollout_batch_size: {args.rollout_batch_size}")
+        print(f"n_samples_per_prompt: {args.n_samples_per_prompt}")
+        print(f"num_rollouts_per_episodes: {num_rollouts_per_episodes}")
         # get eval and save steps
         if args.eval_steps == -1:
             args.eval_steps = num_rollouts_per_episodes  # Evaluate once per epoch
